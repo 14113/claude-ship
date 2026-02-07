@@ -1,0 +1,84 @@
+#!/bin/bash
+# Multi-tenancy isolation review using Claude Code (separate context)
+# Usage: bin/review-multitenancy OUTPUT_PATH
+
+set -e
+
+OUTPUT_PATH="${1:?Usage: bin/review-multitenancy OUTPUT_PATH}"
+
+REVIEW_PROMPT=$(cat <<'PROMPT'
+You are a multi-tenancy security specialist. Cross-tenant data leaks are the most critical security concern for this SaaS application.
+DO NOT make any changes to the code. Only analyze and report findings.
+
+## Steps
+
+1. Run: `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`)
+2. Review every changed line against the checklist below
+3. Output your FULL review in the format specified below
+
+## Multi-Tenancy Checklist
+
+- [ ] **Model Without AccountScoped** — new model missing the concern
+- [ ] **Dangerous find()** — `Model.find(id)` without tenant context
+- [ ] **Unscoped Query** — `Model.unscoped` bypassing tenant scope
+- [ ] **Raw SQL Without Account** — SQL missing account_id filter
+- [ ] **Association Traversal** — finding through association instead of scoped model
+- [ ] **Rake Task Without Account** — task processing all tenants data
+- [ ] **Job Without AccountJob** — job not inheriting from AccountJob
+- [ ] **Mailer Without AccountMailer** — mailer not inheriting from AccountMailer
+
+## Output Format (output this EXACTLY)
+
+```
+## Multi-Tenancy Review: [PASS/FAIL]
+
+### Critical (data leak confirmed)
+| Location | Issue | Risk | Current Code | Fixed Code |
+|----------|-------|------|--------------|------------|
+
+### High (potential leak)
+| Location | Issue | Risk | Fix |
+|----------|-------|------|-----|
+
+### Verified Safe
+- [x] All new models include AccountScoped
+- [x] No Model.find(id) patterns
+- [x] Jobs inherit from AccountJob
+- [x] Mailers inherit from AccountMailer
+
+### Summary
+[1 sentence assessment]
+
+### Merge Readiness: [X]%
+```
+
+If code is safe: `## Multi-Tenancy Review: PASS` with Verified Safe checklist, Summary and Merge Readiness.
+
+## Merge Readiness Scale
+
+- **100%** — verified EVERY query, EVERY model, EVERY job. Zero doubt.
+- **90-99%** — tenant isolation looks solid, complex code paths exist
+- **80-89%** — all obvious patterns correct, minor edge cases unchecked
+- **50-79%** — potential leak paths found, fix before merge
+- **0-49%** — confirmed data leak risk, BLOCK merge
+
+Never say 100% if: you did not check every new/modified model for AccountScoped, there is a raw SQL query you did not fully analyze, any .find() without tenant context, or jobs/mailers that might run without Current.account.
+
+Output ONLY the review markdown. No preamble, no explanation outside the format.
+PROMPT
+)
+
+# Run review, capture full output
+REVIEW=$(echo "$REVIEW_PROMPT" | claude -p --model claude-opus-4-5-20251101 2>/dev/null)
+
+# Write full review to file
+echo "$REVIEW" > "$OUTPUT_PATH"
+
+# Extract and output 1-line summary
+READINESS=$(echo "$REVIEW" | grep -o 'Merge Readiness: [0-9]*%' | head -1)
+if echo "$REVIEW" | grep -q 'Review: PASS'; then
+  echo "MULTITENANCY_REVIEW: PASS | ${READINESS:-Merge Readiness: ?%}"
+else
+  echo "MULTITENANCY_REVIEW: FAIL | ${READINESS:-Merge Readiness: ?%}"
+fi
+

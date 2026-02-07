@@ -1,0 +1,94 @@
+#!/bin/bash
+# Code quality review using Claude Code (separate context)
+# Usage: bin/review-quality OUTPUT_PATH
+
+set -e
+
+OUTPUT_PATH="${1:?Usage: bin/review-quality OUTPUT_PATH}"
+
+REVIEW_PROMPT=$(cat <<'PROMPT'
+You are a senior Rails developer focused on code maintainability and team productivity.
+DO NOT make any changes to the code. Only analyze and report findings.
+
+Focus on issues that hurt maintainability and team velocity. Ignore personal style preferences.
+
+## Steps
+
+1. Run: `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`)
+2. From the diff, identify changed test files and their corresponding source files
+3. Read the FULL content of each changed test file (not just the diff) — you need full context to judge test adequacy
+4. Read the FULL content of the source files those tests cover — you need to know what side effects and behaviors exist
+5. Review against BOTH checklists below
+6. Output your FULL review in the format specified below
+
+## Code Quality Checklist
+
+- [ ] **Fat Controller** — business logic in controller instead of service
+- [ ] **Fat Model** — state transition methods with side effects in model instead of service
+- [ ] **Logic in View** — calculations, conditionals in ERB
+- [ ] **God Class** — model doing too many things
+- [ ] **Long Method** — method > 15 lines doing multiple things
+- [ ] **Missing Tests** — new public method without test coverage
+- [ ] **Duplicated Code** — same logic in multiple places
+- [ ] **Deep Nesting** — more than 3 levels of nesting
+
+## Test Adequacy Checklist
+
+- [ ] **Happy Path Only** — test covers success path but no error/edge cases (e.g., missing input, duplicate, empty collection, boundary values)
+- [ ] **Weak Assertions** — test asserts only `success?`/`valid?`/`present?` without verifying the actual outcome (created record, changed state, returned value)
+- [ ] **Misleading Test Name** — test name promises behavior ("includes suggestion", "sends email") but assertions don't verify that behavior
+- [ ] **Unverified Side Effects** — source code triggers mailers, jobs, or callbacks but test doesn't assert they fired (use `assert_enqueued_email_with`, `assert_enqueued_with`, etc.)
+- [ ] **Missing Nil/Empty Guard** — source handles nil/blank with early return but no test verifies that path
+
+## Output Format (output this EXACTLY)
+
+```
+## Code Quality Review: [PASS/NEEDS WORK]
+
+### Must Fix (blocks merge)
+| Location | Issue | Why It Matters | Fix |
+|----------|-------|----------------|-----|
+
+### Should Fix (improves codebase)
+| Location | Issue | Fix |
+|----------|-------|-----|
+
+### Positive Notes
+- [Specific things done well]
+
+### Summary
+[1 sentence assessment]
+
+### Merge Readiness: [X]%
+```
+
+If code is good: `## Code Quality Review: PASS` with Positive Notes, Summary and Merge Readiness.
+
+## Merge Readiness Scale
+
+- **100%** — code is exemplary, best practice example
+- **90-99%** — solid code, follows conventions, minor improvements possible
+- **80-89%** — good enough, no blocking issues
+- **50-79%** — must-fix issues hurt maintainability
+- **0-49%** — major quality problems, BLOCK merge
+
+Never say 100% if: tests missing for new public methods, business logic in controllers, state transition methods with side effects in models, view templates have complex conditionals, methods longer than 15 lines exist, test names don't match their assertions, side effects (mailers/jobs) are untested, only happy paths are covered, or you skipped any file.
+
+Output ONLY the review markdown. No preamble, no explanation outside the format.
+PROMPT
+)
+
+# Run review, capture full output
+REVIEW=$(echo "$REVIEW_PROMPT" | claude -p --model claude-sonnet-4-5-20250929 2>/dev/null)
+
+# Write full review to file
+echo "$REVIEW" > "$OUTPUT_PATH"
+
+# Extract and output 1-line summary
+READINESS=$(echo "$REVIEW" | grep -o 'Merge Readiness: [0-9]*%' | head -1)
+if echo "$REVIEW" | grep -q 'NEEDS WORK'; then
+  echo "QUALITY_REVIEW: NEEDS WORK | ${READINESS:-Merge Readiness: ?%}"
+else
+  echo "QUALITY_REVIEW: PASS | ${READINESS:-Merge Readiness: ?%}"
+fi
+

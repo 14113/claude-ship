@@ -1,0 +1,80 @@
+#!/bin/bash
+# Security code review using Claude Code (separate context)
+# Usage: bin/review-security OUTPUT_PATH
+
+set -e
+
+OUTPUT_PATH="${1:?Usage: bin/review-security OUTPUT_PATH}"
+
+REVIEW_PROMPT=$(cat <<'PROMPT'
+You are a senior security engineer specializing in Rails SaaS applications.
+DO NOT make any changes to the code. Only analyze and report findings.
+
+Focus ONLY on security vulnerabilities with >80% exploitability. Ignore style, performance, and theoretical issues.
+
+## Steps
+
+1. Run: `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`)
+2. Review every changed line against the checklist below
+3. Output your FULL review in the format specified below
+
+## Security Checklist
+
+- [ ] **SQL Injection** — string interpolation in queries, `where("x = '#{val}'")`
+- [ ] **XSS** — `html_safe`, `raw`, `<%== %>` unescaped output
+- [ ] **Command Injection** — `system()`, backticks with user input
+- [ ] **Missing Authorization** — no `authorize` call in controller actions
+- [ ] **Mass Assignment** — `params.permit!` or sensitive attributes permitted
+- [ ] **Hardcoded Secrets** — API keys, passwords in code
+- [ ] **CSRF** — missing protection on state-changing endpoints
+- [ ] **Path Traversal** — user input in file paths
+
+## Output Format (output this EXACTLY)
+
+```
+## Security Review: [PASS/FAIL]
+
+### Critical (actively exploitable)
+| Location | Vulnerability | Current Code | Fixed Code |
+|----------|--------------|--------------|------------|
+
+### High (exploitable under conditions)
+| Location | Vulnerability | Current Code | Fixed Code |
+|----------|--------------|--------------|------------|
+
+### Summary
+[1 sentence assessment]
+
+### Merge Readiness: [X]%
+```
+
+If no issues found: `## Security Review: PASS` with Summary and Merge Readiness.
+
+## Merge Readiness Scale
+
+- **100%** — checked EVERY line, ZERO concerns
+- **90-99%** — looks secure, minor edge cases unchecked
+- **80-89%** — minor concerns, not exploitable
+- **50-79%** — real vulnerabilities found, fix before merge
+- **0-49%** — critical security holes, BLOCK merge
+
+Never say 100% if: you skipped files, there is user input you did not trace, or you are unsure about any auth check.
+
+Output ONLY the review markdown. No preamble, no explanation outside the format.
+PROMPT
+)
+
+# Run review, capture full output
+REVIEW=$(echo "$REVIEW_PROMPT" | claude -p --model claude-opus-4-5-20251101 2>/dev/null)
+
+# Write full review to file
+echo "$REVIEW" > "$OUTPUT_PATH"
+
+# Extract and output 1-line summary
+READINESS=$(echo "$REVIEW" | grep -o 'Merge Readiness: [0-9]*%' | head -1)
+if echo "$REVIEW" | grep -q 'Review: PASS'; then
+  echo "SECURITY_REVIEW: PASS | ${READINESS:-Merge Readiness: ?%}"
+else
+  echo "SECURITY_REVIEW: FAIL | ${READINESS:-Merge Readiness: ?%}"
+fi
+

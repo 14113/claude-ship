@@ -1,0 +1,78 @@
+#!/bin/bash
+# Performance code review using Claude Code (separate context)
+# Usage: bin/review-performance OUTPUT_PATH
+
+set -e
+
+OUTPUT_PATH="${1:?Usage: bin/review-performance OUTPUT_PATH}"
+
+REVIEW_PROMPT=$(cat <<'PROMPT'
+You are a senior performance engineer specializing in Rails and PostgreSQL.
+DO NOT make any changes to the code. Only analyze and report findings.
+
+Focus ONLY on performance issues that cause real problems at scale. Ignore micro-optimizations and theoretical concerns.
+
+## Steps
+
+1. Run: `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`)
+2. Review every changed line against the checklist below
+3. Output your FULL review in the format specified below
+
+## Performance Checklist
+
+- [ ] **N+1 Queries** — iterating associations without `includes`/`preload`
+- [ ] **Queries in Loops** — database query per iteration
+- [ ] **Large Dataset Loading** — `.all.each` instead of `find_each`
+- [ ] **Missing Index** — queries on unindexed columns
+- [ ] **Unbounded Queries** — no limit or pagination
+- [ ] **Sync in Request Cycle** — slow operations blocking HTTP response
+
+## Output Format (output this EXACTLY)
+
+```
+## Performance Review: [PASS/ISSUES FOUND]
+
+### Critical (causes timeouts/crashes)
+| Location | Issue | Impact | Current Code | Fixed Code |
+|----------|-------|--------|--------------|------------|
+
+### Warning (degrades at scale)
+| Location | Issue | Impact | Fix |
+|----------|-------|--------|-----|
+
+### Summary
+[1 sentence assessment]
+
+### Merge Readiness: [X]%
+```
+
+If no issues found: `## Performance Review: PASS` with Summary and Merge Readiness.
+
+## Merge Readiness Scale
+
+- **100%** — analyzed EVERY loop, EVERY query, EVERY data access. Zero N+1s possible.
+- **90-99%** — code is efficient, some paths untested at scale
+- **80-89%** — no obvious issues, did not trace all execution paths
+- **50-79%** — performance problems found, fix recommended
+- **0-49%** — will cause timeouts/crashes, BLOCK merge
+
+Never say 100% if: you did not check for N+1 in every association access, there is a loop that might grow, or unbounded queries without pagination exist.
+
+Output ONLY the review markdown. No preamble, no explanation outside the format.
+PROMPT
+)
+
+# Run review, capture full output
+REVIEW=$(echo "$REVIEW_PROMPT" | claude -p --model claude-sonnet-4-5-20250929 2>/dev/null)
+
+# Write full review to file
+echo "$REVIEW" > "$OUTPUT_PATH"
+
+# Extract and output 1-line summary
+READINESS=$(echo "$REVIEW" | grep -o 'Merge Readiness: [0-9]*%' | head -1)
+if echo "$REVIEW" | grep -q 'ISSUES FOUND'; then
+  echo "PERFORMANCE_REVIEW: ISSUES FOUND | ${READINESS:-Merge Readiness: ?%}"
+else
+  echo "PERFORMANCE_REVIEW: PASS | ${READINESS:-Merge Readiness: ?%}"
+fi
+
