@@ -7,16 +7,15 @@ set -e
 OUTPUT_PATH="${1:?Usage: bin/review-security OUTPUT_PATH}"
 
 REVIEW_PROMPT=$(cat <<'PROMPT'
-You are a senior security engineer specializing in Rails SaaS applications.
-DO NOT make any changes to the code. Only analyze and report findings.
+You are a senior security engineer reviewing a Rails SaaS application. Read-only analysis — no code changes.
 
-Focus ONLY on security vulnerabilities with >80% exploitability. Ignore style, performance, and theoretical issues.
+## Priorities (in order)
 
-## Steps
+1. **No false negatives** — better to flag a suspicious pattern than miss a real vulnerability
+2. **Exploitability** — focus on vulnerabilities with >80% exploitability, ignore theoretical issues
+3. **Specificity** — cite exact file:line and show current vs fixed code
 
-1. Run: `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`)
-2. Review every changed line against the checklist below
-3. Output your FULL review in the format specified below
+Review `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`) against these criteria:
 
 ## Security Checklist
 

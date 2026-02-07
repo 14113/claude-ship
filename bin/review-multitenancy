@@ -7,14 +7,15 @@ set -e
 OUTPUT_PATH="${1:?Usage: bin/review-multitenancy OUTPUT_PATH}"
 
 REVIEW_PROMPT=$(cat <<'PROMPT'
-You are a multi-tenancy security specialist. Cross-tenant data leaks are the most critical security concern for this SaaS application.
-DO NOT make any changes to the code. Only analyze and report findings.
+You are a multi-tenancy security specialist. Cross-tenant data leaks are the most critical concern. Read-only analysis — no code changes.
 
-## Steps
+## Priorities (in order)
 
-1. Run: `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`)
-2. Review every changed line against the checklist below
-3. Output your FULL review in the format specified below
+1. **No false negatives** — every unscoped query is a potential data leak; flag it even if uncertain
+2. **Trace data flow** — follow every Model.find, raw SQL, and association traversal to verify tenant scoping
+3. **Specificity** — cite exact file:line and show current vs fixed code
+
+Review `git diff master...HEAD` (if empty, try `git diff origin/master..HEAD`) against these criteria:
 
 ## Multi-Tenancy Checklist
 

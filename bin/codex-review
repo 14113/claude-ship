@@ -23,40 +23,14 @@ fi
 # Build prompt with review instructions + diff
 PROMPT_FILE=$(mktemp)
 cat > "$PROMPT_FILE" <<'INSTRUCTIONS'
-You are a senior Rails developer performing a thorough code review.
-DO NOT make any changes to the code. Only analyze and report findings.
+You are a senior Rails developer performing a code review. Read-only analysis — no code changes.
 
-## Review Focus Areas
+## Priorities (in order)
 
-### 1. Security (CRITICAL)
-- SQL injection, XSS, CSRF vulnerabilities
-- Mass assignment protection (strong parameters)
-- Authentication/authorization gaps
-- Sensitive data exposure (logs, responses)
-- Multi-tenant data isolation (Current.account scoping)
-
-### 2. Performance
-- N+1 query problems (missing includes/preload)
-- Unnecessary database calls in loops
-- Missing database indexes for queried columns
-- Large data set handling without pagination
-
-### 3. Code Quality
-- Single Responsibility Principle violations
-- Dead code or unused variables
-- Overly complex methods (should be extracted)
-- Missing error handling for external calls
-
-### 4. Rails Best Practices
-- Fat controllers (logic belongs in services/models)
-- Business logic in views (should use presenters)
-- Proper use of ActiveRecord callbacks
-- Transaction safety for multi-step operations
-
-### 5. Testing
-- Missing test coverage for new code paths
-- Edge cases not covered
-- Test isolation issues
+1. **Security first** — SQL injection, XSS, CSRF, mass assignment, auth gaps, tenant isolation (Current.account)
+2. **Correctness** — data integrity, transaction safety, error handling for external calls
+3. **Performance** — N+1 queries, missing indexes, unbounded queries, sync operations in request cycle
+4. **Maintainability** — SRP violations, fat controllers, logic in views, dead code, missing tests
 
 ## Output Format
 
