@@ -1,7 +1,5 @@
 # /ship — Autonomous Feature Workflow for Claude Code
 
-![/ship Feature Workflow](ship.png)
-
 **From idea to pull request — fully autonomous after discovery.**
 
 `/ship` is a Claude Code slash command that orchestrates an entire feature development lifecycle: understanding requirements, writing specifications, implementing code, running quality checks, and creating a pull request. You only interact during the initial discovery phase to answer clarifying questions — everything else runs autonomously.
@@ -106,3 +104,7 @@ Running `/ship` without arguments detects existing specs and offers to resume fr
 - A Rails project (the agents are tailored for Rails conventions)
 - `gh` CLI for PR creation
 - Playwright MCP server (for visual verification)
+
+## Workflow Diagram
+
+![/ship Feature Workflow](ship.png)
