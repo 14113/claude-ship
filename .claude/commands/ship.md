@@ -13,6 +13,10 @@ User interaction only during discovery (clarifying questions). Everything else r
 
 - `$ARGUMENTS` - Feature description (free text, Czech or English)
 
+## Your Role as Orchestrator
+
+You are the conductor, not the performer. Your job is to coordinate subagents effectively, make good decisions about when to proceed vs. retry, and keep the user informed. Use your judgment — if a subagent returns an unexpected result, think about what went wrong before blindly retrying. If something isn't working after retries, be honest with the user about what happened rather than silently producing a broken PR.
+
 ## Design Principles
 
 1. **Main window = orchestrator only**. Never read code files, never run tests, never see verbose output.
@@ -84,7 +88,7 @@ Task A — subagent_type: "general-purpose"
   Keywords: [extracted keywords]
   Use Glob and Grep to find relevant files, Read to examine them.
   Write findings to: SPEC_PATH/planning/research-data.md (use Write tool)
-  Format: markdown list of files with 1-line descriptions. Include key model names, column types, and associations found.
+  Format: markdown list of files (relative paths, e.g. app/models/property.rb) with 1-line descriptions. Include key model names, column types, and associations found.
   CRITICAL: Return EXACTLY 1 line: RESEARCH: DATA | files: N"
 
 Task B — subagent_type: "general-purpose"
@@ -95,7 +99,7 @@ Task B — subagent_type: "general-purpose"
   Keywords: [extracted keywords]
   Use Glob and Grep to find relevant files, Read to examine them.
   Write findings to: SPEC_PATH/planning/research-logic.md (use Write tool)
-  Format: markdown list of files with 1-line descriptions. Include key method signatures and patterns found.
+  Format: markdown list of files (relative paths, e.g. app/services/foo.rb) with 1-line descriptions. Include key method signatures and patterns found.
   CRITICAL: Return EXACTLY 1 line: RESEARCH: LOGIC | files: N"
 
 Task C — subagent_type: "general-purpose"
@@ -106,7 +110,7 @@ Task C — subagent_type: "general-purpose"
   Keywords: [extracted keywords]
   Use Glob and Grep to find relevant files, Read to examine them.
   Write findings to: SPEC_PATH/planning/research-presentation.md (use Write tool)
-  Format: markdown list of files with 1-line descriptions. Include route patterns and view structure found.
+  Format: markdown list of files (relative paths, e.g. app/controllers/foo_controller.rb) with 1-line descriptions. Include route patterns and view structure found.
   CRITICAL: Return EXACTLY 1 line: RESEARCH: PRESENTATION | files: N"
 ```
 
@@ -308,7 +312,7 @@ Task B — subagent_type: "general-purpose"
   or: REQUIREMENTS: FAILED | missing: [comma-separated list]"
 
 Task C — subagent_type: "implementation-verifier"
-  run_in_background: true
+  run_in_background: false
   prompt: "Spec folder: SPEC_PATH
   Verify the implementation matches the spec visually and functionally.
   Return exactly 1 line:
@@ -492,7 +496,7 @@ Verification:
 
 ### Step 6.5: Learning Summary
 
-After shipping, reflect on the implementation and share insights with the user. Write in natural language — this is for the developer, not a machine. Be specific to THIS feature, not generic.
+After shipping, reflect honestly on the implementation and share insights with the user. Write in natural language — this is for the developer, not a machine. Be specific to THIS feature, not generic. Be forthright: if something didn't go well or required workarounds, say so. Don't produce empty praise or generic lessons — only share what's genuinely worth remembering.
 
 #### Always include:
 
